@@ -847,4 +847,16 @@ public class EncryptionOptions
         }
 
     }
+
+    public static class JmxEncryptionOptions extends EncryptionOptions
+    {
+        public String keystore_type;
+        public String truststore_type;
+
+        public JmxEncryptionOptions()
+        {
+            keystore_type = "JKS";
+            truststore_type = "JKS";
+        }
+    }
 }

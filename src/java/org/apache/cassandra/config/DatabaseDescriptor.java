@@ -42,6 +42,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -59,6 +60,8 @@ import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.jmx.JmxEncryptionOptionsProvider;
+import org.apache.cassandra.auth.jmx.ConfigurationJmxEncryptionOptionsProvider;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
@@ -157,6 +160,7 @@ public class DatabaseDescriptor
     private static Comparator<Replica> localComparator;
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
+    private static JmxEncryptionOptionsProvider jmxEncryptionOptionsProvider;
 
     private static DiskOptimizationStrategy diskOptimizationStrategy;
 
@@ -833,6 +837,51 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
             }
+        }
+
+        try
+        {
+            final ParameterizedClass jmxEncryptionOptions = (conf.jmx_encryption_options == null) ?
+                new ParameterizedClass(
+                    ConfigurationJmxEncryptionOptionsProvider.class.getName(),
+                    ImmutableMap.of("enabled", "false")
+                )
+                :
+                conf.jmx_encryption_options;
+
+            final Class<?> jmxEncryptionOptionsProviderClass = Class.forName(jmxEncryptionOptions.class_name);
+            if (!JmxEncryptionOptionsProvider.class.isAssignableFrom(jmxEncryptionOptionsProviderClass))
+            {
+                throw new ConfigurationException(
+                    jmxEncryptionOptions.class_name
+                    + " is not an instance of "
+                    + JmxEncryptionOptionsProvider.class.getCanonicalName(),
+                    false
+                );
+            }
+
+            jmxEncryptionOptionsProvider =
+                (JmxEncryptionOptionsProvider)jmxEncryptionOptionsProviderClass
+                                              .getConstructor(Map.class)
+                                              .newInstance(jmxEncryptionOptions.parameters);
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new ConfigurationException(
+            e.getMessage()
+            + "\nUnable to find JMX encryption provider class: "
+            + conf.jmx_encryption_options.class_name,
+            false
+            );
+        }
+        // there are four checked exceptions that could be thrown here;
+        //  InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException
+        catch (Exception e)
+        {
+            throw new ConfigurationException(
+            e.getMessage() + "\nFatal configuration error; unable to start server. See log for stacktrace.",
+            true
+            );
         }
 
         if (conf.snapshot_links_per_second < 0)
@@ -3063,6 +3112,11 @@ public class DatabaseDescriptor
     public static void updateNativeProtocolEncryptionOptions(Function<EncryptionOptions, EncryptionOptions> update)
     {
         conf.client_encryption_options = update.apply(conf.client_encryption_options);
+    }
+
+    public static EncryptionOptions.JmxEncryptionOptions getJmxEncryptionOptions()
+    {
+        return jmxEncryptionOptionsProvider.getJmxEncryptionOptions();
     }
 
     public static int getHintedHandoffThrottleInKiB()
