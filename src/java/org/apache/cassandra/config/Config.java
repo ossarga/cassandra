@@ -432,6 +432,7 @@ public class Config
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
+    public ParameterizedClass jmx_encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 

@@ -903,4 +903,16 @@ public class EncryptionOptions
                                                legacy_ssl_storage_port_enabled).applyConfigInternal();
         }
     }
+
+    public static class JmxEncryptionOptions extends EncryptionOptions
+    {
+        public String keystore_type;
+        public String truststore_type;
+
+        public JmxEncryptionOptions()
+        {
+            keystore_type = "JKS";
+            truststore_type = "JKS";
+        }
+    }
 }
